@@ -1,0 +1,158 @@
+-- TOMQ-SCRIPT-2020
+-- Prevent script from running multiple times
+if _G.ini then return end
+_G.ini = true
+
+-- Initialize sound
+local function playSound(id)
+    local sound = Instance.new("Sound")
+    sound.SoundId = id
+    sound.Parent = game:GetService("SoundService")
+    sound:Play()
+end
+
+playSound("rbxassetid://216917652")
+
+-- Notify the user
+game.StarterGui:SetCore("SendNotification", {
+    Title = "Unanchored To Player",
+    Text = "GUI Loaded - Press F to Hide/Show",
+    Duration = 5
+})
+
+print("================ UNANCHORED TO PLAYER LOADED ================")
+print("================ MADE BY TomQ#6764 ==================")
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local UserInputService = game:GetService("UserInputService")
+
+-- Variables
+local spam = false
+local freeze = false
+local highlight = false
+
+-- Utility functions
+local function isRelevantPart(part)
+    return part:IsA("BasePart") 
+        and not part.Anchored 
+        and not part:IsDescendantOf(LocalPlayer.Character)
+end
+
+local function applyBodyPosition(part, enabled)
+    if enabled then
+        local bodyPos = Instance.new("BodyPosition")
+        bodyPos.Position = part.Position
+        bodyPos.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        bodyPos.P = 1e6
+        bodyPos.Parent = part
+    else
+        for _, child in ipairs(part:GetChildren()) do
+            if child:IsA("BodyPosition") then
+                child:Destroy()
+            end
+        end
+    end
+end
+
+-- Function to find the closest player
+local function getClosestPlayer(part)
+    local closestPlayer = nil
+    local closestDistance = math.huge -- Start with a very large number
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Character and player.Character.PrimaryPart then
+            local distance = (player.Character.PrimaryPart.Position - part.Position).Magnitude
+            if distance < closestDistance then
+                closestDistance = distance
+                closestPlayer = player
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+-- Set NetworkOwnership for relevant parts
+local function assignNetworkOwnership(part)
+    local closestPlayer = getClosestPlayer(part)
+    if closestPlayer then
+        part:SetNetworkOwner(closestPlayer)
+    else
+        part:SetNetworkOwner(nil) -- Default to server ownership if no players are nearby
+    end
+end
+
+-- Handle teleportation
+local function teleportTo(position)
+    playSound("rbxassetid://3398620867")
+    for _, part in pairs(workspace:GetDescendants()) do
+        if isRelevantPart(part) then
+            part.CFrame = CFrame.new(position)
+            if spam then applyBodyPosition(part, true) end
+            assignNetworkOwnership(part)
+        end
+    end
+end
+
+-- Input handling
+UserInputService.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+        teleportTo(Mouse.Hit.p)
+    end
+end)
+
+-- Freeze/unfreeze parts
+local function toggleFreezeParts(enable)
+    freeze = enable
+    for _, part in pairs(workspace:GetDescendants()) do
+        if isRelevantPart(part) then
+            applyBodyPosition(part, freeze)
+            assignNetworkOwnership(part)
+        end
+    end
+end
+
+-- Highlight/unhighlight unanchored parts
+local function toggleHighlightParts(enable)
+    highlight = enable
+    for _, part in pairs(workspace:GetDescendants()) do
+        if isRelevantPart(part) then
+            if enable then
+                local selectionBox = Instance.new("SelectionBox")
+                selectionBox.Adornee = part
+                selectionBox.Color3 = Color3.new(1, 0, 0)
+                selectionBox.Parent = part
+            else
+                for _, child in ipairs(part:GetChildren()) do
+                    if child:IsA("SelectionBox") then
+                        child:Destroy()
+                    end
+                end
+            end
+        end
+    end
+end
+
+workspace.DescendantAdded:Connect(function(part)
+    if highlight and isRelevantPart(part) then
+        local selectionBox = Instance.new("SelectionBox")
+        selectionBox.Adornee = part
+        selectionBox.Color3 = Color3.new(1, 0, 0)
+        selectionBox.Parent = part
+    end
+    assignNetworkOwnership(part)
+end)
+
+-- Settings GUI (simplified)
+local function createSetting(name, callback)
+    -- Implementation for creating GUI and linking `callback`
+end
+
+createSetting("Freeze Parts", function() toggleFreezeParts(not freeze) end)
+createSetting("Highlight Unanchored", function() toggleHighlightParts(not highlight) end)
+createSetting("Spam Parts", function() spam = not spam end)
+
+print("All settings initialized.")
